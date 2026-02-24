@@ -1,6 +1,6 @@
 # Orquestrador de Incidentes IoT - Desafio Promont
 
-Este projeto apresenta uma solução para o processamento de eventos assíncronos e desordenados de dispositivos IoT (cadeados inteligentes RedSquare®), utilizando n8n, Python e Inteligência Artificial.
+Este projeto apresenta uma solução para o processamento de eventos assíncronos e desordenados de dispositivos IoT, utilizando n8n, Python e Inteligência Artificial.
 
 ## Stack Tecnológica
 
