@@ -4,24 +4,19 @@ Este projeto apresenta uma solução para o processamento de eventos assíncrono
 
 ## Stack Tecnológica
 
-* 
-**Orquestrador:** n8n.
+* **Orquestrador:** n8n.
 
 
-* 
-**Linguagens de Script:** Python (Lógica de segurança e splitter de dados) e JavaScript (Agrupamento por dispositivo).
+* **Linguagens de Script:** Python (Lógica de segurança e splitter de dados) e JavaScript (Agrupamento por dispositivo).
 
 
-* 
-**IA:** LLM agnóstico (testado com Groq Cloud/Llama 3) via LangChain para análise de contexto e redação de alertas.
+* **IA:** LLM agnóstico (testado com Groq Cloud/Llama 3) via LangChain para análise de contexto e redação de alertas.
 
 
-* 
-**Banco de Dados:** Duas versões disponíveis (Supabase ou n8n DataTables).
+* **Banco de Dados:** Duas versões disponíveis (Supabase ou n8n DataTables).
 
 
-* 
-**Notificação:** Gmail API.
+* **Notificação:** Gmail API.
 
 
 
@@ -29,23 +24,19 @@ Este projeto apresenta uma solução para o processamento de eventos assíncrono
 
 O núcleo da solução reconstrói a cronologia dos eventos para identificar inconsistências baseadas nos sensores do hardware:
 
-* 
-**ID 32 (Cadeado):** 0: Fechado / 1: Aberto.
+* **ID 32 (Cadeado):** 0: Fechado / 1: Aberto.
 
 
-* 
-**ID 33 (Travamento):** 0: Travado / 1: Destravado.
+* **ID 33 (Travamento):** 0: Travado / 1: Destravado.
 
 
 
 **Regras implementadas no nó Python:**
 
-* 
-**Vulnerabilidade:** Cadeado fechado (32=0), mas destravado (33=1).
+* **Vulnerabilidade:** Cadeado fechado (32=0), mas destravado (33=1).
 
 
-* 
-**Invasão:** Cadeado aberto (32=1) sem que tenha havido o destravamento prévio (33 permaneceu em 0).
+* **Invasão:** Cadeado aberto (32=1) sem que tenha havido o destravamento prévio (33 permaneceu em 0).
 
 
 
@@ -85,9 +76,3 @@ Para simular um sistema em tempo real enviando dados periodicamente, utilize o s
 1. Certifique-se de ter a biblioteca `requests` instalada (`pip install requests`).
 2. Execute o script: `python test_loop.py`.
 3. O script enviará o payload de teste para o Webhook e aguardará 60 segundos antes da próxima iteração, simulando o ciclo de inteligência solicitado.
-
-
-
----
-
-**Dica final:** Ao enviar o e-mail para o Guilherme, certifique-se de que o repositório esteja público ou que ele tenha permissão de acesso. Desejo muito sucesso no processo seletivo! Precisa de ajuda com mais alguma coisa?
