@@ -1,0 +1,473 @@
+{
+  "name": "Teste Tecnico Promont",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "511b85ab-9848-49d0-9ce4-0c80a68d0399",
+        "responseMode": "streaming",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -640,
+        256
+      ],
+      "id": "c3eb6a1a-0405-46f2-aa74-66453f9811d4",
+      "name": "Webhook",
+      "webhookId": "511b85ab-9848-49d0-9ce4-0c80a68d0399"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json }}",
+        "options": {
+          "systemMessage": "Você é um Analista de Segurança Cibernética e Física especializado em monitoramento de dispositivos IoT.\nSua tarefa é receber o diagnóstico técnico de um dispositivo e redigir um relatório/e-mail para a equipe de resposta.\n\n### ENTRADA QUE VOCÊ RECEBERÁ:\nVocê receberá um JSON contendo:\n- device_id: Identificação do dispositivo.\n- security_status: O diagnóstico (INVASION, VULNERABILITY ou SAFE).\n- rule_broken: Descrição técnica da regra violada.\n- evidence: Detalhes dos sensores (ID 32 e 33) no momento do evento.\n- last_timestamp: Horário da ocorrência.\n\n### REGRAS DE RESPOSTA:\n1. IDIOMA: Responda SEMPRE em Português (Brasil).\n2. TOM: Mantenha um tom profissional, urgente (em caso de alertas) e extremamente claro.\n3. FORMATO DE SAÍDA:\n   - Se STATUS for 'INVASION' ou 'VULNERABILITY': Escreva um Assunto de E-mail e um Corpo de E-mail detalhando o risco e o que os sensores detectaram.\n   - Assunto: id_device - nome da regra quebra em Português (Brasil)\n\n4. TODO SAIDA DEVE GERAR UM OUTPUT JSON INFORMANDO IGUAL AO DADOS RECEBIDO E SE O EMAIL FOI ENVIADO\n### LOGICA DE HARDWARE (Para seu contexto):\n- ID 32 = 0 (Fechado) / 1 (Aberto)\n- ID 33 = 0 (Trancado) / 1 (Destravado)\n\nIMPORTANTE: Não invente dados. Use apenas o que foi enviado no JSON.",
+          "batching": {
+            "batchSize": 1,
+            "delayBetweenBatches": 1000
+          }
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        544,
+        256
+      ],
+      "id": "18467456-004b-4125-968d-b2f7075e1005",
+      "name": "AI Agent",
+      "retryOnFail": false,
+      "waitBetweenTries": 5000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-oss-120b",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        544,
+        544
+      ],
+      "id": "69231985-bc44-4e60-85a5-635bf6649c8a",
+      "name": "Groq Chat Model1",
+      "credentials": {
+        "groqApi": {
+          "id": "PJIulpOc5CRWUkEl",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "language": "pythonNative",
+        "pythonCode": "split_data = []\nfor item in _items[0][\"json\"][\"body\"]:\n  for event_batch in item[\"event_batch\"]:\n    res = {\n            \"device_id\":item[\"device_id\"],\n            \"user_report\":item[\"user_report\"],\n            \"timestamp\":event_batch[\"timestamp\"],\n            \"alarm_id\":event_batch[\"alarm_id\"],\n            \"alarm_value\":event_batch[\"value\"],\n          }\n    split_data.append(res)\nreturn split_data"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -368,
+        256
+      ],
+      "id": "ee03153a-2cb4-4dfc-b89a-ce2b3556d3e1",
+      "name": "Data splitter in python"
+    },
+    {
+      "parameters": {
+        "subject": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Subject', ``, 'string') }}",
+        "message": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Message', ``, 'string') }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmailTool",
+      "typeVersion": 2.2,
+      "position": [
+        688,
+        560
+      ],
+      "id": "9607650e-8c36-4f7e-bcd9-7240df29bfb1",
+      "name": "Send email if Security risk",
+      "webhookId": "304ee2ed-8264-4656-b5d6-1c93e9bf1832",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "85Hrm8rrfcoXkDuc",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "language": "pythonNative",
+        "pythonCode": "results = []\n\nfor item in _items:\n    records = item.get('json', {}).get('records', [])\n    device_id = item.get('json', {}).get('device_id')\n    \n    last_32 = None\n    last_33 = None\n    status = \"SAFE\"\n    rule_broken = None\n    evidence = \"\"\n    \n    for rec in records:\n        if rec['alarm_id'] == 32: last_32 = rec['alarm_value']\n        if rec['alarm_id'] == 33: last_33 = rec['alarm_value']\n        \n        if last_32 is not None and last_33 is not None:\n            if last_32 == 0 and last_33 == 1:\n                status = \"VULNERABILITY\"\n                rule_broken = \"Rule 1: Door closed but bolt retracted\"\n                evidence = f\"At {rec['timestamp']}, ID 32=0 and ID 33=1\"\n                break \n            \n            elif last_32 == 1 and last_33 == 0:\n                status = \"INVASION\"\n                rule_broken = \"Rule 2: Door forced open while locked\"\n                evidence = f\"At {rec['timestamp']}, ID 32=1 and ID 33=0\"\n                break\n\n    results.append({\n        \"json\": {\n            \"device_id\": device_id,\n            \"security_status\": status,\n            \"rule_broken\": rule_broken,\n            \"evidence\": evidence,\n            \"last_timestamp\": records[-1]['timestamp'] if records else None,\n\n        }\n    })\n\nreturn results"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        336,
+        256
+      ],
+      "id": "29a1e7bc-2c90-40ae-8c0e-b82608c6592a",
+      "name": "Security check in python"
+    },
+    {
+      "parameters": {
+        "tableId": "user_reports",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "device_id",
+              "fieldValue": "={{ $json.device_id }}"
+            },
+            {
+              "fieldId": "user_report",
+              "fieldValue": "={{ $json.user_report }}"
+            },
+            {
+              "fieldId": "report_timestamp",
+              "fieldValue": "={{ $json.timestamp }}"
+            },
+            {
+              "fieldId": "alarm_id",
+              "fieldValue": "={{ $json.alarm_id }}"
+            },
+            {
+              "fieldId": "alarm_value",
+              "fieldValue": "={{ $json.alarm_value }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "98cf0193-35b3-43e3-affa-6a746c8b6e26",
+      "name": "Save logs to database",
+      "credentials": {
+        "supabaseApi": {
+          "id": "kXzUSdHOFTVlOisJ",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "tableId": "Report email sent",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "DEVICE_ID",
+              "fieldValue": "={{ $json.device_id }}"
+            },
+            {
+              "fieldId": "EMAIL_SENT",
+              "fieldValue": "={{ $json.email_sent }}"
+            },
+            {
+              "fieldId": "RULE_BROKEN",
+              "fieldValue": "={{ $json.rule_broken }}"
+            },
+            {
+              "fieldId": "EVIDENCE",
+              "fieldValue": "={{ $json.evidence }}"
+            },
+            {
+              "fieldId": "TIMESTAMP",
+              "fieldValue": "={{ $json.timestamp }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1136,
+        256
+      ],
+      "id": "eff76b31-74e1-427b-8748-ad150a376b3f",
+      "name": "Save results to database",
+      "credentials": {
+        "supabaseApi": {
+          "id": "kXzUSdHOFTVlOisJ",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sortFieldsUi": {
+          "sortField": [
+            {
+              "fieldName": "timestamp"
+            },
+            {
+              "fieldName": "device_id"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.sort",
+      "typeVersion": 1,
+      "position": [
+        -112,
+        256
+      ],
+      "id": "161e4ee2-963d-4ad4-bca2-89d19f1e08b2",
+      "name": "Sort by date"
+    },
+    {
+      "parameters": {
+        "jsCode": "const grouped = {};\n\nfor (const item of items) {\n  const deviceId = item.json.device_id;\n\n  if (!grouped[deviceId]) {\n    grouped[deviceId] = [];\n  }\n\n  grouped[deviceId].push(item.json);\n}\n\nreturn Object.keys(grouped).map(deviceId => ({\n  json: {\n    device_id: deviceId,\n    records: grouped[deviceId]\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        112,
+        256
+      ],
+      "id": "5018e912-51a3-4e25-b8a8-e67d81589af6",
+      "name": "Agreggate by id in JavaScript"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nreturn items.map(item => {\n  try {\n    const parsedOutput = JSON.parse(item.json.output);\n    \n    return {\n      json: {\n        device_id: parsedOutput.device_id,\n        rule_broken: parsedOutput.rule_broken,\n        evidence: parsedOutput.evidence,\n        email_sent: parsedOutput.email_sent,\n        status: parsedOutput.status || parsedOutput.security_status, \n        timestamp: new Date().toISOString() \n      }\n    };\n  } catch (e) {\n  \n    return { json: { error: \"Falha ao processar JSON da IA\", raw: item.json.output } };\n  }\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        912,
+        256
+      ],
+      "id": "a0e5d717-057d-4021-a7f6-3670c976489e",
+      "name": "Convert back to json in Javascript"
+    }
+  ],
+  "pinData": {
+    "Webhook": [
+      {
+        "json": {
+          "headers": {
+            "host": "gabriel7almeida.app.n8n.cloud",
+            "user-agent": "python-requests/2.32.5",
+            "content-length": "1011",
+            "accept": "*/*",
+            "accept-encoding": "gzip, br",
+            "cdn-loop": "cloudflare; loops=1; subreqs=1",
+            "cf-connecting-ip": "2804:d51:475f:3900:9aa4:8487:36d7:b27c",
+            "cf-ew-via": "15",
+            "cf-ipcountry": "BR",
+            "cf-ray": "9d32c651dbf78ea4-CWB",
+            "cf-visitor": "{\"scheme\":\"https\"}",
+            "cf-worker": "n8n.cloud",
+            "content-type": "application/json",
+            "x-forwarded-for": "2804:d51:475f:3900:9aa4:8487:36d7:b27c, 172.69.201.147",
+            "x-forwarded-host": "gabriel7almeida.app.n8n.cloud",
+            "x-forwarded-port": "443",
+            "x-forwarded-proto": "https",
+            "x-forwarded-server": "traefik-prod-users-gwc-106-7b95ddc446-tjw6r",
+            "x-is-trusted": "yes",
+            "x-real-ip": "2804:d51:475f:3900:9aa4:8487:36d7:b27c"
+          },
+          "params": {},
+          "query": {},
+          "body": [
+            {
+              "device_id": "RS-CADEADO-01",
+              "user_report": "Fechei o cadeado mas o app diz que está aberta.",
+              "event_batch": [
+                {
+                  "timestamp": "2026-02-19T10:05:00Z",
+                  "alarm_id": 32,
+                  "value": 0
+                },
+                {
+                  "timestamp": "2026-02-19T10:00:00Z",
+                  "alarm_id": 32,
+                  "value": 1
+                }
+              ]
+            },
+            {
+              "device_id": "RS-CADEADO-02",
+              "user_report": "Sai agora do local.",
+              "event_batch": [
+                {
+                  "timestamp": "2026-02-19T10:02:00Z",
+                  "alarm_id": 33,
+                  "value": 0
+                }
+              ]
+            },
+            {
+              "device_id": "RS-CADEADO-01",
+              "user_report": "Travei o cadeado mas o app diz que está destravado.",
+              "event_batch": [
+                {
+                  "timestamp": "2026-02-19T10:02:00Z",
+                  "alarm_id": 33,
+                  "value": 0
+                }
+              ]
+            },
+            {
+              "device_id": "RS-CADEADO-02",
+              "user_report": "Sai agora do local.",
+              "event_batch": [
+                {
+                  "timestamp": "2026-02-19T10:02:00Z",
+                  "alarm_id": 32,
+                  "value": 1
+                }
+              ]
+            },
+            {
+              "device_id": "RS-CADEADO-03",
+              "user_report": "Travei o cadeado mas o app diz que está destravado.",
+              "event_batch": [
+                {
+                  "timestamp": "2026-02-19T10:01:00Z",
+                  "alarm_id": 32,
+                  "value": 0
+                },
+                {
+                  "timestamp": "2026-02-19T10:05:00Z",
+                  "alarm_id": 33,
+                  "value": 1
+                }
+              ]
+            }
+          ],
+          "webhookUrl": "https://gabriel7almeida.app.n8n.cloud/webhook-test/511b85ab-9848-49d0-9ce4-0c80a68d0399",
+          "executionMode": "test"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Data splitter in python",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Data splitter in python": {
+      "main": [
+        [
+          {
+            "node": "Sort by date",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Convert back to json in Javascript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send email if Security risk": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Security check in python": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sort by date": {
+      "main": [
+        [
+          {
+            "node": "Agreggate by id in JavaScript",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Save logs to database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agreggate by id in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Security check in python",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert back to json in Javascript": {
+      "main": [
+        [
+          {
+            "node": "Save results to database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "c6c356d3-481e-4099-8e60-369f6d4be3b0",
+  "meta": {
+    "instanceId": "ab5c7c08807b8a381700ec50eaab526b3df202b3818f92baf161f899ca59f883"
+  },
+  "id": "9g5SEyO8p8GABSU0",
+  "tags": []
+}
